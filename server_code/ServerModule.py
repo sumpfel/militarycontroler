@@ -35,6 +35,11 @@ def query(sql, params=(), one=False):
 # ============================================================
 
 @anvil.server.callable
+def get_all_base_locations():
+    """Gibt Name, Lat und Lon aller Basen für Google Maps zurück."""
+    return query("SELECT basis_id, name, latitude, longitude FROM militaerbasis")
+
+@anvil.server.callable
 def get_dashboard_stats():
     """Statistiken für das Dashboard."""
     conn = get_db()
@@ -104,6 +109,45 @@ def get_persons(basis_id=None, search_query=None):
     sql += " ORDER BY r.hierarchie_stufe DESC, p.nachname"
     return query(sql, params)
 
+
+@anvil.server.callable
+def get_base_details_extended(basis_id):
+    """Erweiterte Details für eine Basis (Statistiken für Grafiken)."""
+    base = get_base_details(basis_id)
+    if not base:
+        return None
+    
+    # Fahrzeugstatistik
+    vehicle_stats = query("""
+        SELECT typ, COUNT(*) as cnt 
+        FROM fahrzeug 
+        WHERE basis_id = ? 
+        GROUP BY typ
+    """, (basis_id,))
+    
+    # Personalstatistik
+    personnel_stats = query("""
+        SELECT status, COUNT(*) as cnt 
+        FROM person 
+        WHERE basis_id = ? 
+        GROUP BY status
+    """, (basis_id,))
+    
+    # Lagerfüllstand
+    warehouse_stats = query("""
+        SELECT l.bezeichnung, 
+               (SELECT SUM(menge) FROM gegenstand WHERE lager_id = l.lager_id) as belegung,
+               l.kapazitaet
+        FROM lager l
+        WHERE l.basis_id = ?
+    """, (basis_id,))
+
+    return {
+        "base": base,
+        "vehicles": vehicle_stats,
+        "personnel": personnel_stats,
+        "warehouses": warehouse_stats
+    }
 
 @anvil.server.callable
 def get_person_details(person_id):

@@ -9,6 +9,7 @@ unique_ids:
     FahrzeugeForm: FAHRZEUGE01ABCDEFGHIJKLMNOPQRS
     LagerForm: LAGERFORM01ABCDEFGHIJKLMNOPQRSTU
     WaffenMunitionForm: WAFFENMUN01ABCDEFGHIJKLMNOP
+    BasisDetailsForm: BASISDETAILS01ABCDEFGHIJKLMNOPQ
   modules: {}
   scripts: {}
   server_modules:
