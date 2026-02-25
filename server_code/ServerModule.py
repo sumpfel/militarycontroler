@@ -162,6 +162,25 @@ def get_person_details(person_id):
         WHERE p.person_id = ?
     """, (person_id,), one=True)
 
+@anvil.server.callable
+def get_person_assignments(person_id):
+    """Gibt zugewiesene Fahrzeuge und Gegenstände einer Person zurück."""
+    vehicles = query("""
+        SELECT f.*, pf.zugewiesen_am 
+        FROM fahrzeug f
+        JOIN person_fahrzeug pf ON f.fahrzeug_id = pf.fahrzeug_id
+        WHERE pf.person_id = ?
+    """, (person_id,))
+    
+    items = query("""
+        SELECT g.*, pg.menge as zugewiesene_menge, pg.zugewiesen_am 
+        FROM gegenstand g
+        JOIN person_gegenstand pg ON g.gegenstand_id = pg.gegenstand_id
+        WHERE pg.person_id = ?
+    """, (person_id,))
+    
+    return {"vehicles": vehicles, "items": items}
+
 
 # ============================================================
 # FAHRZEUGE
@@ -521,6 +540,31 @@ def init_db():
             plates.add(p)
             cur.execute("INSERT INTO fahrzeug (typ,name,kennzeichen,status,basis_id) VALUES (?,?,?,?,?)",
                         (t, n, p, random.choices(["EINSATZBEREIT","WARTUNG","DEFEKT"], weights=[70,20,10])[0], bid))
+
+    # person_gegenstand (m:n Zuweisung)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS person_gegenstand (
+        person_id INTEGER NOT NULL,
+        gegenstand_id INTEGER NOT NULL,
+        menge INTEGER NOT NULL DEFAULT 1,
+        zugewiesen_am TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (person_id, gegenstand_id),
+        FOREIGN KEY (person_id) REFERENCES person(person_id),
+        FOREIGN KEY (gegenstand_id) REFERENCES gegenstand(gegenstand_id)
+    );
+    """)
+
+    # person_fahrzeug (m:n Zuweisung)
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS person_fahrzeug (
+        person_id INTEGER NOT NULL,
+        fahrzeug_id INTEGER NOT NULL,
+        zugewiesen_am TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (person_id, fahrzeug_id),
+        FOREIGN KEY (person_id) REFERENCES person(person_id),
+        FOREIGN KEY (fahrzeug_id) REFERENCES fahrzeug(fahrzeug_id)
+    );
+    """)
 
     conn.commit()
     conn.close()

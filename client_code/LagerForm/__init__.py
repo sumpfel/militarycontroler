@@ -1,88 +1,48 @@
 from ._anvil_designer import LagerFormTemplate
 from anvil import *
 import anvil.server
-
+from .. import UIUtils
 
 class LagerForm(LagerFormTemplate):
     def __init__(self, **properties):
         self.init_components(**properties)
+        self.bases = anvil.server.call('get_bases_dropdown')
+        self.drop_down_basis.items = [("Alle Basen", None)] + [(b['name'], b['basis_id']) for b in self.bases]
+        self.load_warehouses()
+
+    def load_warehouses(self, **event_args):
+        basis_id = self.drop_down_basis.selected_value
+        warehouses = anvil.server.call('get_warehouses', basis_id)
         
-        self.add_component(Label(text="Lager & Gegenstände", role="headline", spacing_above="small"))
+        self.flow_panel_lager.clear()
+        for w in warehouses:
+            card = self.create_lager_card(w)
+            self.flow_panel_lager.add_component(card)
+
+    def create_lager_card(self, w):
+        card = ColumnPanel(role="card", spacing_above="medium")
+        header = Label(text=f"{UIUtils.get_icon(w['typ'])} {w['bezeichnung']} ({w['basis_name']})", bold=True, font_size=18)
+        card.add_component(header)
+        card.add_component(Label(text=f"Typ: {w['typ']} | Kapazität: {w['kapazitaet']} | Items: {w['anzahl_items']}", italic=True))
         
-        # Basis-Filter
-        filter_panel = FlowPanel(spacing_above="small", spacing_below="small")
-        self.basis_dropdown = DropDown(placeholder="Alle Basen", include_placeholder=True, width=250)
-        bases = anvil.server.call('get_bases_dropdown')
-        self.basis_dropdown.items = [(b['name'], b['basis_id']) for b in bases]
-        self.basis_dropdown.set_event_handler('change', self.filter_changed)
-        filter_panel.add_component(Label(text="Basis: ", bold=True))
-        filter_panel.add_component(self.basis_dropdown)
-        self.add_component(filter_panel)
+        details_panel = ColumnPanel(visible=False, spacing_above="small")
+        card.add_component(details_panel)
         
-        # Container für Lager-Karten
-        self.lager_container = ColumnPanel()
-        self.add_component(self.lager_container)
+        btn = Button(text="Inhalt anzeigen", role="secondary-color")
         
-        self.load_data()
-    
-    def filter_changed(self, **event_args):
-        self.load_data()
-    
-    def load_data(self):
-        basis_id = self.basis_dropdown.selected_value
-        warehouses = anvil.server.call('get_warehouses', basis_id=basis_id)
-        
-        self.lager_container.clear()
-        
-        for wh in warehouses:
-            card = ColumnPanel(role="card", spacing_above="small", spacing_below="small")
-            
-            # Lager-Header
-            header = FlowPanel()
-            header.add_component(Label(
-                text=f"📦 {wh['bezeichnung']}",
-                bold=True, font_size=16
-            ))
-            header.add_component(Label(
-                text=f"  [{wh['typ']}]  |  {wh['basis_name']}  |  {wh['anzahl_items']} Positionen  |  Menge: {wh['gesamt_menge']}",
-                italic=True, foreground="gray"
-            ))
-            card.add_component(header)
-            
-            # Expand-Button
-            items_panel = ColumnPanel(visible=False)
-            
-            btn = Button(text="📋 Inhalt anzeigen", role="outlined")
-            def toggle_items(panel=items_panel, button=btn, lager_id=wh['lager_id']):
-                def handler(**event_args):
-                    if not panel.visible:
-                        panel.visible = True
-                        button.text = "📋 Inhalt ausblenden"
-                        if len(panel.get_components()) == 0:
-                            items = anvil.server.call('get_warehouse_items', lager_id)
-                            if items:
-                                grid = DataGrid(auto_header=True)
-                                grid.columns = [
-                                    {"id": "name", "title": "Gegenstand", "data_key": "name"},
-                                    {"id": "kategorie", "title": "Kategorie", "data_key": "kategorie"},
-                                    {"id": "kaliber", "title": "Kaliber", "data_key": "kaliber"},
-                                    {"id": "menge", "title": "Menge", "data_key": "menge"},
-                                    {"id": "status", "title": "Status", "data_key": "status"},
-                                ]
-                                for item in items:
-                                    item['kaliber'] = item.get('kaliber') or '-'
-                                    row = DataRowPanel(item=item)
-                                    grid.add_component(row)
-                                panel.add_component(grid)
-                            else:
-                                panel.add_component(Label(text="Lager ist leer.", italic=True))
-                    else:
-                        panel.visible = False
-                        button.text = "📋 Inhalt anzeigen"
-                return handler
-            
-            btn.set_event_handler('click', toggle_items())
-            card.add_component(btn)
-            card.add_component(items_panel)
-            
-            self.lager_container.add_component(card)
+        def toggle_items(**e):
+            if not details_panel.visible:
+                items = anvil.server.call('get_warehouse_items', w['lager_id'])
+                details_panel.clear()
+                for i in items:
+                    icon = UIUtils.get_icon(i['kategorie'], i['name'])
+                    details_panel.add_component(Label(text=f"{icon} {i['name']} (x{i['menge']}) - {i['status']}"))
+                details_panel.visible = True
+                btn.text = "Inhalt verbergen"
+            else:
+                details_panel.visible = False
+                btn.text = "Inhalt anzeigen"
+                
+        btn.set_event_handler('click', toggle_items)
+        card.add_component(btn)
+        return card

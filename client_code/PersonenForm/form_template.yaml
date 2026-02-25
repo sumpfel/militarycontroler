@@ -1,6 +1,27 @@
 components:
-- layout_properties: {full_width_row: true}
-  name: content
+- components:
+  - layout_properties: {grid_position: 'BGJSQG,XENXDB'}
+    name: label_1
+    properties: {role: headline, text: Personalverwaltung}
+    type: Label
+  - layout_properties: {grid_position: 'RMTKGV,XENXDB'}
+    name: drop_down_basis
+    properties: {placeholder: Alle Basen}
+    type: DropDown
+  - layout_properties: {grid_position: 'RMTKGV,YUKLHP'}
+    name: text_box_search
+    properties: {placeholder: Name oder Funktion...}
+    type: TextBox
+  - layout_properties: {grid_position: 'RMTKGV,ASDFGH'}
+    name: btn_search
+    properties: {role: primary-color, text: Suchen}
+    type: Button
+  - layout_properties: {grid_position: 'ASDFGH,XENXDB'}
+    name: flow_panel_persons
+    properties: {spacing_above: large}
+    type: FlowPanel
+  layout_properties: {slot: default}
+  name: content_panel
   properties: {}
   type: ColumnPanel
 container:
