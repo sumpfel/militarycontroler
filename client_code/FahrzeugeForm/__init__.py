@@ -15,14 +15,34 @@ class FahrzeugeForm(FahrzeugeFormTemplate):
         self.load_vehicles()
 
     def load_vehicles(self, **event_args):
-        """Lädt Fahrzeuge mit Icons."""
+        """Lädt Fahrzeuge als Karten."""
         basis_id = self.drop_down_basis.selected_value
         typ = self.drop_down_typ.selected_value
         vehicles = anvil.server.call('get_vehicles', basis_id, typ)
         
-        # Icon hinzufügen
+        self.flow_panel_vehicles.clear()
         for v in vehicles:
-            icon = UIUtils.get_icon(v['typ'], v['name'])
-            v['display_name'] = f"{icon} {v['name']}"
-            
-        self.repeating_panel_fahrzeuge.items = vehicles
+            card = self.create_vehicle_card(v)
+            self.flow_panel_vehicles.add_component(card)
+
+    def create_vehicle_card(self, v):
+        card = ColumnPanel(role="card", spacing_above="medium")
+        icon = UIUtils.get_icon(v['typ'], v['name'])
+        header = Label(text=f"{icon} {v['name']}", bold=True, font_size=18)
+        card.add_component(header)
+        
+        info = Label(text=f"Typ: {v['typ']} | Kennzeichen: {v['kennzeichen']} | Basis: {v['basis_name']}", italic=True)
+        card.add_component(info)
+        
+        status_label = Label(text=f"Status: {v['status']}")
+        if v['status'] == 'EINSATZBEREIT': status_label.foreground = "green"
+        elif v['status'] == 'DEFEKT': status_label.foreground = "red"
+        card.add_component(status_label)
+        
+        return card
+
+    def drop_down_basis_change(self, **event_args):
+        self.load_vehicles()
+
+    def drop_down_typ_change(self, **event_args):
+        self.load_vehicles()

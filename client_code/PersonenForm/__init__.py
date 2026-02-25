@@ -6,6 +6,9 @@ from .. import UIUtils
 class PersonenForm(PersonenFormTemplate):
     def __init__(self, **properties):
         self.init_components(**properties)
+        self.page = 1
+        self.page_size = 20
+        self.all_persons = []
         
         # Dropdowns initialisieren
         self.bases = anvil.server.call('get_bases_dropdown')
@@ -20,22 +23,34 @@ class PersonenForm(PersonenFormTemplate):
         self.load_persons()
 
     def load_persons(self, **event_args):
-        """Lädt Personen mit Filtern."""
+        """Lädt alle Personen vom Server und zeigt die erste Seite an."""
         basis_id = self.drop_down_basis.selected_value
         rang_id = self.drop_down_rang.selected_value
         beruf = self.drop_down_beruf.selected_value
         search = self.text_box_search.text
         
-        persons = anvil.server.call('get_persons', basis_id, search, rang_id, beruf)
-        
-        self.flow_panel_persons.clear()
-        for p in persons:
-            card = self.create_person_card(p)
-            self.flow_panel_persons.add_component(card)
+        self.all_persons = anvil.server.call('get_persons', basis_id, search, rang_id, beruf)
+        self.page = 1
+        self.display_page()
         
         # Statistik aktualisieren falls sichtbar
         if self.panel_stats.visible:
             self.update_stats()
+
+    def display_page(self):
+        """Zeigt die aktuelle Seite der Personenliste an."""
+        start = (self.page - 1) * self.page_size
+        end = start + self.page_size
+        page_items = self.all_persons[start:end]
+        
+        self.flow_panel_persons.clear()
+        for p in page_items:
+            card = self.create_person_card(p)
+            self.flow_panel_persons.add_component(card)
+            
+        self.label_page.text = f"Seite {self.page}"
+        self.btn_prev.enabled = self.page > 1
+        self.btn_next.enabled = end < len(self.all_persons)
 
     def create_person_card(self, p):
         card = ColumnPanel(role="card", spacing_above="medium")
@@ -78,7 +93,7 @@ class PersonenForm(PersonenFormTemplate):
                 if assignments['items']:
                     for i in assignments['items']:
                         icon = UIUtils.get_icon(i['kategorie'], i['name'])
-                        details_panel.add_component(Label(text=f"{icon} {i['name']} (x{i['zugewiesene_menge']})"))
+                        details_panel.add_component(Label(text=f"{icon} {i['name']} (x{i.get('zugewiesene_menge', i['menge'])})"))
                 else:
                     details_panel.add_component(Label(text="Keine Zuweisungen.", italic=True))
                 
@@ -102,18 +117,31 @@ class PersonenForm(PersonenFormTemplate):
             self.btn_toggle_stats.text = "Statistik anzeigen"
 
     def update_stats(self):
-        """Aktualisiert die Statistik-Labels."""
+        """Aktualisiert die Statistik-Labels basierend auf den aktuellen Filtern."""
         basis_id = self.drop_down_basis.selected_value
         stats = anvil.server.call('get_personnel_stats', basis_id)
         
+        total = sum(r['cnt'] for r in stats['ranks'])
+        self.panel_stats.add_component(Label(text=f"Gesamtpersonal: {total}", bold=True, foreground="blue"), index=0)
+
         self.flow_stats_ranks.clear()
         for r in stats['ranks']:
-            self.flow_stats_ranks.add_component(Label(text=f"{r['bezeichnung']}: {r['cnt']}  |  ", font_size=12))
+            self.flow_stats_ranks.add_component(Label(text=f"{r['bezeichnung']}: {r['cnt']}  |  ", font_size=10))
             
         self.flow_stats_profs.clear()
         for p in stats['professions']:
             icon = UIUtils.get_icon(p['beruf_funktion'], p['beruf_funktion'])
-            self.flow_stats_profs.add_component(Label(text=f"{icon} {p['beruf_funktion']}: {p['cnt']}  |  ", font_size=12))
+            self.flow_stats_profs.add_component(Label(text=f"{icon} {p['beruf_funktion']}: {p['cnt']}  |  ", font_size=10))
+
+    def btn_prev_click(self, **event_args):
+        if self.page > 1:
+            self.page -= 1
+            self.display_page()
+
+    def btn_next_click(self, **event_args):
+        if self.page * self.page_size < len(self.all_persons):
+            self.page += 1
+            self.display_page()
 
     def drop_down_basis_change(self, **event_args):
         self.load_persons()
