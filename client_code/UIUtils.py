@@ -9,6 +9,22 @@ def get_icon(entity_type, name=None):
         "HUBSCHRAUBER": "🚁",
         "BOOT": "🚢",
         "TRANSPORTER": "🚐",
+        "STAB": "🏢",
+        "INFANTERIE": "🎖️",
+        "LOGISTIK": "📦",
+
+        # Berufe / Funktionen
+        "Soldat": "🪖",
+        "Koch": "👨‍🍳",
+        "Mechaniker": "🔧",
+        "Sanitäter": "🩺",
+        "Fernmelder": "☎️",
+        "Pilot": "👨‍✈️",
+        "Fahrer": "🚛",
+        "Waffenmechaniker": "🛠️",
+        "IT-Spezialist": "💻",
+        "Ausbilder": "👨‍🏫",
+        "Aufklärer": "🔭",
         
         # Gegenstände (Kategorien)
         "WAFFE": "🔫",

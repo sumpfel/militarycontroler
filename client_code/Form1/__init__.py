@@ -57,19 +57,19 @@ class Form1(Form1Template):
             nav_panel.add_component(btn)
         self.content_panel.add_component(nav_panel)
 
-    def nav_dashboard(self, **event_args):
+    def btn_nav_dashboard_click(self, **event_args):
         self.load_form("DashboardForm")
 
-    def nav_personal(self, **event_args):
+    def btn_nav_personal_click(self, **event_args):
         self.load_form("PersonenForm")
 
-    def nav_fahrzeuge(self, **event_args):
+    def btn_nav_fahrzeuge_click(self, **event_args):
         self.load_form("FahrzeugeForm")
 
-    def nav_lager(self, **event_args):
+    def btn_nav_lager_click(self, **event_args):
         self.load_form("LagerForm")
 
-    def nav_waffen(self, **event_args):
+    def btn_nav_waffen_click(self, **event_args):
         self.load_form("WaffenMunitionForm")
     
     def open_basis_details(self, basis_id):

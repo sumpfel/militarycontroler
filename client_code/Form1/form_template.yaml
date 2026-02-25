@@ -5,23 +5,23 @@ components:
     properties: {}
     type: FlowPanel
   - layout_properties: {grid_position: 'RMTKGV,XENXDB'}
-    name: nav_dashboard
+    name: btn_nav_dashboard
     properties: {text: Dashboard, role: primary-color}
     type: Button
   - layout_properties: {grid_position: 'RMTKGV,YUKLHP'}
-    name: nav_personal
+    name: btn_nav_personal
     properties: {text: Personal}
     type: Button
   - layout_properties: {grid_position: 'RMTKGV,ASDFGH'}
-    name: nav_fahrzeuge
+    name: btn_nav_fahrzeuge
     properties: {text: Fahrzeuge}
     type: Button
   - layout_properties: {grid_position: 'RMTKGV,QWERTY'}
-    name: nav_lager
+    name: btn_nav_lager
     properties: {text: Lager}
     type: Button
   - layout_properties: {grid_position: 'RMTKGV,UIOPAS'}
-    name: nav_waffen
+    name: btn_nav_waffen
     properties: {text: Waffen/Munition}
     type: Button
   layout_properties: {slot: default}

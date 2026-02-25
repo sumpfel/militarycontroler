@@ -82,7 +82,7 @@ def get_base_overview():
 # ============================================================
 
 @anvil.server.callable
-def get_persons(basis_id=None, search_query=None):
+def get_persons(basis_id=None, search_query=None, rang_id=None, beruf=None):
     """Alle Personen mit optionalem Filter."""
     sql = """
         SELECT p.person_id, p.vorname, p.nachname, p.geburtsdatum, p.geschlecht,
@@ -100,10 +100,17 @@ def get_persons(basis_id=None, search_query=None):
     if basis_id:
         conditions.append("p.basis_id = ?")
         params.append(basis_id)
+    if rang_id:
+        conditions.append("p.rang_id = ?")
+        params.append(rang_id)
+    if beruf:
+        conditions.append("p.beruf_funktion = ?")
+        params.append(beruf)
     if search_query:
         conditions.append("(p.vorname LIKE ? OR p.nachname LIKE ? OR p.beruf_funktion LIKE ?)")
         q = f"%{search_query}%"
         params.extend([q, q, q])
+    
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY r.hierarchie_stufe DESC, p.nachname"
@@ -180,6 +187,43 @@ def get_person_assignments(person_id):
     """, (person_id,))
     
     return {"vehicles": vehicles, "items": items}
+
+@anvil.server.callable
+def get_personnel_stats(basis_id=None):
+    """Gibt Statistiken über Ränge und Berufe zurück."""
+    base_filter = "WHERE basis_id = ?" if basis_id else ""
+    params = (basis_id,) if basis_id else ()
+    
+    # Berufe
+    professions = query(f"""
+        SELECT beruf_funktion, COUNT(*) as cnt 
+        FROM person 
+        {base_filter}
+        GROUP BY beruf_funktion 
+        ORDER BY cnt DESC
+    """, params)
+    
+    # Ränge
+    ranks = query(f"""
+        SELECT r.bezeichnung, COUNT(*) as cnt 
+        FROM person p
+        JOIN rang r ON p.rang_id = r.rang_id
+        {base_filter.replace('basis_id', 'p.basis_id')}
+        GROUP BY r.bezeichnung 
+        ORDER BY r.hierarchie_stufe DESC
+    """, params)
+    
+    return {"professions": professions, "ranks": ranks}
+
+@anvil.server.callable
+def get_professions_dropdown():
+    """Gibt alle existierenden Berufe zurück."""
+    return [r['beruf_funktion'] for r in query("SELECT DISTINCT beruf_funktion FROM person ORDER BY beruf_funktion")]
+
+@anvil.server.callable
+def get_ranks_dropdown():
+    """Gibt alle Ränge zurück."""
+    return query("SELECT rang_id, bezeichnung FROM rang ORDER BY hierarchie_stufe DESC")
 
 
 # ============================================================
