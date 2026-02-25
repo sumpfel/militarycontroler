@@ -1,17 +1,8 @@
-allow_embedding: false
-metadata: {description: MilitaryControler, title: MilitaryControler}
-name: MilitaryControler
-package_name: MilitaryControler
-runtime_options:
-  client_version: '3'
-  legacy_features: {bootstrap3: true, class_names: true}
-  server_spec: {base: python310-minimal}
-  version: 3
-services:
-- client_config: {}
-  server_config: {}
-  source: /runtime/services/tables.yml
-- client_config: {key: null}
-  server_config: {}
-  source: /runtime/services/google-maps.yml
-startup_form: Form1
+invalidYaml: true
+native_deps:
+  head_html: |2
+
+    <style>
+      .anvil-panel-section-container { padding: 0 15px; }
+    </style>
+runtime_options: {client_version: '2', server_spec: null, version: 2}

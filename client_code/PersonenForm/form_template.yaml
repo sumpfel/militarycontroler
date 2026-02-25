@@ -1,8 +1,0 @@
-components:
-- layout_properties: {full_width_row: true}
-  name: content
-  properties: {}
-  type: ColumnPanel
-container:
-  type: ColumnPanel
-is_package: true
