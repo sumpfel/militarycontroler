@@ -3,23 +3,15 @@ import sqlite3
 import os
 import random
 from datetime import date, timedelta
-
-# DB-Pfad: Im Anvil-Server liegt die DB im /tmp Verzeichnis
 DB_PATH = "/tmp/military_base.db"
-
-
 def get_db():
-    """Gibt eine SQLite-Verbindung zurück. Erstellt die DB falls nicht vorhanden."""
     if not os.path.exists(DB_PATH):
         init_db()
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON;")
     return conn
-
-
 def query(sql, params=(), one=False):
-    """Führt eine SQL-Abfrage aus und gibt die Ergebnisse als Liste von Dicts zurück."""
     conn = get_db()
     cur = conn.cursor()
     cur.execute(sql, params)
@@ -28,39 +20,25 @@ def query(sql, params=(), one=False):
     if one:
         return dict(rows[0]) if rows else None
     return [dict(r) for r in rows]
-
-
-# ============================================================
-# DASHBOARD
-# ============================================================
-
 @anvil.server.callable
 def get_all_base_locations():
-    """Gibt Name, Lat und Lon aller Basen für Google Maps zurück."""
     return query("SELECT basis_id, name, latitude, longitude FROM militaerbasis")
-
 @anvil.server.callable
 def get_dashboard_stats():
-    """Statistiken für das Dashboard."""
     conn = get_db()
     cur = conn.cursor()
     stats = {}
     for table in ["militaerbasis", "person", "fahrzeug", "gegenstand", "lager", "einheit"]:
         cur.execute(f"SELECT COUNT(*) FROM {table}")
         stats[table] = cur.fetchone()[0]
-    # Personen nach Status
     cur.execute("SELECT status, COUNT(*) as cnt FROM person GROUP BY status ORDER BY cnt DESC")
     stats["person_status"] = [dict(r) for r in cur.fetchall()]
-    # Fahrzeuge nach Status
     cur.execute("SELECT status, COUNT(*) as cnt FROM fahrzeug GROUP BY status ORDER BY cnt DESC")
     stats["fahrzeug_status"] = [dict(r) for r in cur.fetchall()]
     conn.close()
     return stats
-
-
 @anvil.server.callable
 def get_base_overview():
-    """Übersicht aller Basen mit Statistiken."""
     return query("""
         SELECT mb.basis_id, mb.name, mb.standort_name, mb.sicherheitsstufe, mb.status,
                mb.kapazitaet, mb.latitude, mb.longitude,
@@ -75,15 +53,8 @@ def get_base_overview():
         LEFT JOIN rang r ON p_cmd.rang_id = r.rang_id
         ORDER BY mb.name
     """)
-
-
-# ============================================================
-# PERSONAL
-# ============================================================
-
 @anvil.server.callable
 def get_persons(basis_id=None, search_query=None, rang_id=None, beruf=None):
-    """Alle Personen mit optionalem Filter."""
     sql = """
         SELECT p.person_id, p.vorname, p.nachname, p.geburtsdatum, p.geschlecht,
                p.beruf_funktion, p.sicherheitsfreigabe, p.status,
@@ -110,37 +81,27 @@ def get_persons(basis_id=None, search_query=None, rang_id=None, beruf=None):
         conditions.append("(p.vorname LIKE ? OR p.nachname LIKE ? OR p.beruf_funktion LIKE ?)")
         q = f"%{search_query}%"
         params.extend([q, q, q])
-    
     if conditions:
         sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY r.hierarchie_stufe DESC, p.nachname"
     return query(sql, params)
-
-
 @anvil.server.callable
 def get_base_details_extended(basis_id):
-    """Erweiterte Details für eine Basis (Statistiken für Grafiken)."""
     base = get_base_details(basis_id)
     if not base:
         return None
-    
-    # Fahrzeugstatistik
     vehicle_stats = query("""
         SELECT typ, COUNT(*) as cnt 
         FROM fahrzeug 
         WHERE basis_id = ? 
         GROUP BY typ
     """, (basis_id,))
-    
-    # Personalstatistik
     personnel_stats = query("""
         SELECT status, COUNT(*) as cnt 
         FROM person 
         WHERE basis_id = ? 
         GROUP BY status
     """, (basis_id,))
-    
-    # Lagerfüllstand
     warehouse_stats = query("""
         SELECT l.bezeichnung, 
                (SELECT SUM(menge) FROM gegenstand WHERE lager_id = l.lager_id) as belegung,
@@ -148,17 +109,14 @@ def get_base_details_extended(basis_id):
         FROM lager l
         WHERE l.basis_id = ?
     """, (basis_id,))
-
     return {
         "base": base,
         "vehicles": vehicle_stats,
         "personnel": personnel_stats,
         "warehouses": warehouse_stats
     }
-
 @anvil.server.callable
 def get_person_details(person_id):
-    """Details einer einzelnen Person."""
     return query("""
         SELECT p.*, r.bezeichnung AS rang, r.hierarchie_stufe,
                mb.name AS basis_name, e.name AS einheit_name
@@ -168,33 +126,25 @@ def get_person_details(person_id):
         LEFT JOIN einheit e ON p.einheit_id = e.einheit_id
         WHERE p.person_id = ?
     """, (person_id,), one=True)
-
 @anvil.server.callable
 def get_person_assignments(person_id):
-    """Gibt zugewiesene Fahrzeuge und Gegenstände einer Person zurück."""
     vehicles = query("""
         SELECT f.*, pf.zugewiesen_am 
         FROM fahrzeug f
         JOIN person_fahrzeug pf ON f.fahrzeug_id = pf.fahrzeug_id
         WHERE pf.person_id = ?
     """, (person_id,))
-    
     items = query("""
         SELECT g.*, pg.menge as zugewiesene_menge, pg.zugewiesen_am 
         FROM gegenstand g
         JOIN person_gegenstand pg ON g.gegenstand_id = pg.gegenstand_id
         WHERE pg.person_id = ?
     """, (person_id,))
-    
     return {"vehicles": vehicles, "items": items}
-
 @anvil.server.callable
 def get_personnel_stats(basis_id=None):
-    """Gibt Statistiken über Ränge und Berufe zurück."""
     base_filter = "WHERE basis_id = ?" if basis_id else ""
     params = (basis_id,) if basis_id else ()
-    
-    # Berufe
     professions = query(f"""
         SELECT beruf_funktion, COUNT(*) as cnt 
         FROM person 
@@ -202,8 +152,6 @@ def get_personnel_stats(basis_id=None):
         GROUP BY beruf_funktion 
         ORDER BY cnt DESC
     """, params)
-    
-    # Ränge
     ranks = query(f"""
         SELECT r.bezeichnung, COUNT(*) as cnt 
         FROM person p
@@ -212,27 +160,15 @@ def get_personnel_stats(basis_id=None):
         GROUP BY r.bezeichnung 
         ORDER BY r.hierarchie_stufe DESC
     """, params)
-    
     return {"professions": professions, "ranks": ranks}
-
 @anvil.server.callable
 def get_professions_dropdown():
-    """Gibt alle existierenden Berufe zurück."""
     return [r['beruf_funktion'] for r in query("SELECT DISTINCT beruf_funktion FROM person ORDER BY beruf_funktion")]
-
 @anvil.server.callable
 def get_ranks_dropdown():
-    """Gibt alle Ränge zurück."""
     return query("SELECT rang_id, bezeichnung FROM rang ORDER BY hierarchie_stufe DESC")
-
-
-# ============================================================
-# FAHRZEUGE
-# ============================================================
-
 @anvil.server.callable
 def get_vehicles(basis_id=None, typ=None):
-    """Alle Fahrzeuge mit optionalem Filter."""
     sql = """
         SELECT f.fahrzeug_id, f.typ, f.name, f.kennzeichen, f.status,
                mb.name AS basis_name
@@ -251,21 +187,11 @@ def get_vehicles(basis_id=None, typ=None):
         sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY f.typ, f.name"
     return query(sql, params)
-
-
 @anvil.server.callable
 def get_vehicle_types():
-    """Alle Fahrzeugtypen für Dropdown."""
     return query("SELECT DISTINCT typ FROM fahrzeug ORDER BY typ")
-
-
-# ============================================================
-# LAGER & GEGENSTÄNDE
-# ============================================================
-
 @anvil.server.callable
 def get_warehouses(basis_id=None):
-    """Alle Lager mit Füllstand."""
     sql = """
         SELECT l.lager_id, l.bezeichnung, l.typ, l.kapazitaet,
                mb.name AS basis_name, mb.basis_id,
@@ -280,11 +206,8 @@ def get_warehouses(basis_id=None):
         params.append(basis_id)
     sql += " ORDER BY mb.name, l.typ, l.bezeichnung"
     return query(sql, params)
-
-
 @anvil.server.callable
 def get_warehouse_items(lager_id):
-    """Alle Gegenstände in einem Lager."""
     return query("""
         SELECT g.gegenstand_id, g.name, g.kategorie, g.kaliber,
                g.seriennummer, g.menge, g.status
@@ -292,11 +215,8 @@ def get_warehouse_items(lager_id):
         WHERE g.lager_id = ?
         ORDER BY g.kategorie, g.name
     """, (lager_id,))
-
-
 @anvil.server.callable
 def get_items(basis_id=None, kategorie=None):
-    """Alle Gegenstände mit optionalem Filter."""
     sql = """
         SELECT g.gegenstand_id, g.name, g.kategorie, g.kaliber,
                g.seriennummer, g.menge, g.status,
@@ -318,15 +238,8 @@ def get_items(basis_id=None, kategorie=None):
         sql += " WHERE " + " AND ".join(conditions)
     sql += " ORDER BY g.kategorie, g.name"
     return query(sql, params)
-
-
-# ============================================================
-# WAFFEN ↔ MUNITION
-# ============================================================
-
 @anvil.server.callable
 def get_weapon_ammo_match(basis_id=None):
-    """Verknüpfung Waffen ↔ passende Munition über Kaliber."""
     sql = """
         SELECT w.name AS waffe_name, w.kaliber, w.menge AS waffe_menge,
                m.name AS munition_name, m.menge AS munition_menge, m.status AS munition_status,
@@ -345,15 +258,8 @@ def get_weapon_ammo_match(basis_id=None):
         params.append(basis_id)
     sql += " ORDER BY w.kaliber, w.name, m.name"
     return query(sql, params)
-
-
-# ============================================================
-# EINHEITEN
-# ============================================================
-
 @anvil.server.callable
 def get_units(basis_id=None):
-    """Alle Einheiten mit Personalstärke."""
     sql = """
         SELECT e.einheit_id, e.name, e.typ, 
                mb.name AS basis_name,
@@ -367,28 +273,13 @@ def get_units(basis_id=None):
         params.append(basis_id)
     sql += " ORDER BY mb.name, e.name"
     return query(sql, params)
-
-
-# ============================================================
-# HILFSFUNKTIONEN
-# ============================================================
-
 @anvil.server.callable
 def get_bases_dropdown():
-    """Basisliste für Dropdown-Menüs."""
     return query("SELECT basis_id, name FROM militaerbasis ORDER BY name")
-
-
-# ============================================================
-# DB INITIALISIERUNG (erstellt DB mit Testdaten falls nötig)
-# ============================================================
-
 def init_db():
-    """Erstellt die Datenbank mit Schema und Testdaten."""
     conn = sqlite3.connect(DB_PATH)
     conn.execute("PRAGMA foreign_keys = ON;")
     cur = conn.cursor()
-
     cur.executescript("""
     CREATE TABLE IF NOT EXISTS rang (
         rang_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -445,8 +336,6 @@ def init_db():
         FOREIGN KEY (basis_id) REFERENCES militaerbasis(basis_id)
     );
     """)
-
-    # Ränge
     raenge = [
         ("Schütze",1),("Gefreiter",2),("Obergefreiter",3),("Hauptgefreiter",4),
         ("Stabsgefreiter",5),("Oberstabsgefreiter",6),("Unteroffizier",7),
@@ -457,8 +346,6 @@ def init_db():
         ("Generalmajor",21),("Generalleutnant",22),("General",23),
     ]
     cur.executemany("INSERT OR IGNORE INTO rang (bezeichnung, hierarchie_stufe) VALUES (?, ?)", raenge)
-
-    # Basen
     basen = [
         ("Fliegerhorst Büchel","Büchel, Rheinland-Pfalz",50.1736,7.0633,"Flugplatz, Bunker",250.0,"STRENG GEHEIM","AKTIV",50000,80000,15000,2500),
         ("Augustdorf Kaserne","Augustdorf, NRW",51.9081,8.7286,"Kasernen, Übungsplatz",180.0,"GEHEIM","AKTIV",35000,60000,12000,3000),
@@ -468,8 +355,6 @@ def init_db():
     ]
     for b in basen:
         cur.execute("INSERT INTO militaerbasis (name,standort_name,latitude,longitude,infrastruktur,flaeche,sicherheitsstufe,status,wasser_vorrat,treibstoff_vorrat,energie_vorrat,kapazitaet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", b)
-
-    # Einheiten
     einheiten_t = [("1. Kompanie","Infanterie"),("2. Kompanie","Infanterie"),("3. Kompanie","Infanterie"),
                    ("Aufklärungszug","Aufklärung"),("Versorgungszug","Logistik"),("Sanitätszug","Sanitäter"),
                    ("Pionierkompanie","Pioniere"),("Fernmeldezug","Fernmelder"),("Stabskompanie","Stab"),
@@ -480,8 +365,6 @@ def init_db():
         for n, t in random.sample(einheiten_t, random.randint(5, 8)):
             cur.execute("INSERT INTO einheit (name, typ, basis_id) VALUES (?,?,?)", (n, t, bid))
             einheit_map[bid].append(cur.lastrowid)
-
-    # Personen
     vn_m = ["Alexander","Benjamin","Christian","Daniel","Erik","Felix","Georg","Hans","Jan","Klaus",
             "Lars","Markus","Niklas","Oliver","Patrick","Robert","Stefan","Thomas","Uwe","Viktor",
             "Wolfgang","Florian","Maximilian","Tobias","Sebastian","Andreas","Matthias","Jürgen",
@@ -494,7 +377,6 @@ def init_db():
           "Berger","Vogel","Friedrich","Jung","Scholz","Engel","Hahn","Keller","Roth","Frank","Ludwig"]
     berufe = ["Soldat","Soldat","Soldat","Soldat","Koch","Mechaniker","Logistik","Sanitäter",
               "Fernmelder","Pilot","Fahrer","Waffenmechaniker","IT-Spezialist","Ausbilder","Aufklärer"]
-
     for bid in range(1, 6):
         for _ in range(random.randint(150, 250)):
             g = random.choices(["M","W"], weights=[80,20])[0]
@@ -508,15 +390,11 @@ def init_db():
             eid = random.choice(einheit_map[bid]) if random.random() < 0.85 else None
             cur.execute("INSERT INTO person (vorname,nachname,geburtsdatum,geschlecht,beruf_funktion,sicherheitsfreigabe,status,basis_id,rang_id,einheit_id) VALUES (?,?,?,?,?,?,?,?,?,?)",
                         (vn, nach, geb, g, beruf, freig, status, bid, rang, eid))
-
-    # Kommandanten
     for bid in range(1, 6):
         cur.execute("SELECT p.person_id FROM person p JOIN rang r ON p.rang_id=r.rang_id WHERE p.basis_id=? AND p.status='AKTIV' ORDER BY r.hierarchie_stufe DESC LIMIT 1", (bid,))
         row = cur.fetchone()
         if row:
             cur.execute("UPDATE militaerbasis SET kommandant_id=? WHERE basis_id=?", (row[0], bid))
-
-    # Lager
     lager_t = [("Waffenkammer Alpha","WAFFENLAGER",500),("Waffenkammer Bravo","WAFFENLAGER",300),
                ("Munitionsbunker 1","MUNITIONSLAGER",1000),("Munitionsbunker 2","MUNITIONSLAGER",800),
                ("Ausrüstungsdepot A","AUSRUESTUNG",800),("Ausrüstungsdepot B","AUSRUESTUNG",600),
@@ -528,8 +406,6 @@ def init_db():
         for n, t, k in random.sample(lager_t, random.randint(6, 9)):
             cur.execute("INSERT INTO lager (bezeichnung,typ,kapazitaet,basis_id) VALUES (?,?,?,?)", (n, t, k, bid))
             lager_map[bid].append((cur.lastrowid, t))
-
-    # Waffen mit Kaliber
     waffen = [("HK G36","WAFFE","5.56x45mm NATO"),("HK G36K","WAFFE","5.56x45mm NATO"),
               ("HK MP7","WAFFE","4.6x30mm HK"),("HK MG5","WAFFE","7.62x51mm NATO"),
               ("HK P8","WAFFE","9x19mm Parabellum"),("MG3","WAFFE","7.62x51mm NATO"),
@@ -545,12 +421,10 @@ def init_db():
             ("Funkgerät SEM 52","ELEKTRONIK"),("GPS-Empfänger","ELEKTRONIK"),("Erste-Hilfe-Set","MEDIZIN"),
             ("Sanitätsrucksack","MEDIZIN"),("Fernglas","AUSRUESTUNG"),("Tarnanzug Flecktarn","AUSRUESTUNG"),
             ("Kampfstiefel","AUSRUESTUNG"),("Feldration EPA","VERPFLEGUNG"),("Schlafsack","AUSRUESTUNG")]
-
     sn_counter = [100000]
     def next_sn():
         sn_counter[0] += 1
         return f"BW-{sn_counter[0]}"
-
     for bid in range(1, 6):
         wl = [l for l in lager_map[bid] if l[1] == "WAFFENLAGER"]
         ml = [l for l in lager_map[bid] if l[1] == "MUNITIONSLAGER"]
@@ -567,8 +441,6 @@ def init_db():
             for n, k in random.choices(ausr, k=random.randint(20, 35)):
                 cur.execute("INSERT INTO gegenstand (name,kategorie,kaliber,seriennummer,menge,status,lager_id) VALUES (?,?,?,?,?,?,?)",
                             (n, k, None, next_sn(), random.randint(1,50), random.choice(["VERFUEGBAR","AUSGEGEBEN","DEFEKT"]), random.choice(al)[0]))
-
-    # Fahrzeuge
     fz = [("PANZER","Leopard 2A7"),("PANZER","Puma IFV"),("PANZER","Marder 1A5"),("PANZER","Boxer GTK"),
           ("LKW","MAN KAT1"),("LKW","Mercedes Zetros"),("LKW","Unimog U5000"),
           ("JEEP","Mercedes G-Klasse"),("JEEP","Eagle V"),("JEEP","Dingo 2"),
@@ -584,8 +456,6 @@ def init_db():
             plates.add(p)
             cur.execute("INSERT INTO fahrzeug (typ,name,kennzeichen,status,basis_id) VALUES (?,?,?,?,?)",
                         (t, n, p, random.choices(["EINSATZBEREIT","WARTUNG","DEFEKT"], weights=[70,20,10])[0], bid))
-
-    # person_gegenstand (m:n Zuweisung)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS person_gegenstand (
         person_id INTEGER NOT NULL,
@@ -597,8 +467,6 @@ def init_db():
         FOREIGN KEY (gegenstand_id) REFERENCES gegenstand(gegenstand_id)
     );
     """)
-
-    # person_fahrzeug (m:n Zuweisung)
     cur.execute("""
     CREATE TABLE IF NOT EXISTS person_fahrzeug (
         person_id INTEGER NOT NULL,
@@ -609,7 +477,6 @@ def init_db():
         FOREIGN KEY (fahrzeug_id) REFERENCES fahrzeug(fahrzeug_id)
     );
     """)
-
     conn.commit()
     conn.close()
     print("DB initialisiert mit Testdaten.")
