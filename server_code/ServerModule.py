@@ -86,6 +86,17 @@ def get_persons(basis_id=None, search_query=None, rang_id=None, beruf=None):
     sql += " ORDER BY r.hierarchie_stufe DESC, p.nachname"
     return query(sql, params)
 @anvil.server.callable
+def get_base_details(basis_id):
+    return query("""
+        SELECT mb.*,
+               p_cmd.vorname || ' ' || p_cmd.nachname AS kommandant_name,
+               r.bezeichnung AS kommandant_rang
+        FROM militaerbasis mb
+        LEFT JOIN person p_cmd ON mb.kommandant_id = p_cmd.person_id
+        LEFT JOIN rang r ON p_cmd.rang_id = r.rang_id
+        WHERE mb.basis_id = ?
+    """, (basis_id,), one=True)
+@anvil.server.callable
 def get_base_details_extended(basis_id):
     base = get_base_details(basis_id)
     if not base:
